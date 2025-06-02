@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 import mediapipe as mp
+import serial
+import time
 
 mp_facemesh = mp.solutions.face_mesh
 mp_drawing = mp.solutions.drawing_utils
@@ -14,6 +16,12 @@ all_left_eye_idxs = set(np.ravel(list(mp_facemesh.FACEMESH_LEFT_EYE)))
 all_right_eye_idxs = set(np.ravel(list(mp_facemesh.FACEMESH_RIGHT_EYE)))
 all_idxs = all_left_eye_idxs.union(all_right_eye_idxs)
 all_chosen_idxs = chosen_left_eye_idxs + chosen_right_eye_idxs
+arduino = serial.Serial(port='/dev/ttyUSB0', baudrate=115200, timeout=1)
+
+last_sent = time.time()
+interval = 2
+safety = 0
+status_send = 1
 
 def distance(p1, p2):
     return sum([(i - j) ** 2 for i, j in zip(p1, p2)]) ** 0.5
@@ -165,14 +173,27 @@ with mp_facemesh.FaceMesh(refine_landmarks=True, max_num_faces=1) as face_mesh:
                 coord = denormalize_coordinates(landmarks[idx].x, landmarks[idx].y, imgW, imgH)
                 if coord:
                     cv2.circle(image_chosen_lmks, coord, 2, (0, 255, 255), -1)
-
+        
         if(ear < 0.25 and mar > 0.5 and is_sleppy):
             # print("mengantuk ") 
+            if(not safety):
+                status_send = 1
             cv2.putText(image_chosen_lmks, "Mengantuk!!", (520, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
         else:
             # print("normal")
+            safety = 0
+            status_send = 0
             cv2.putText(image_chosen_lmks, "Aman", (520, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+
+        now = time.time()
+        if now - last_sent >= interval:
+            if(status_send):
+                data = str(status_send)+"\n"
+                arduino.write(data.encode())
+                safety = 1
+                status_send = 0
+                last_sent = now
 
         cv2.putText(image_chosen_lmks, f"{mouth_dir}", (520,60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 100), 2)
         cv2.imshow("Tessellation", image_tess)
