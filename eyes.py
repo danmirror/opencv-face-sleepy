@@ -20,8 +20,10 @@ arduino = serial.Serial(port='/dev/ttyUSB0', baudrate=115200, timeout=1)
 
 last_sent = time.time()
 interval = 2
+safety_tresh = 20
+count_safety = 0
 safety = 0
-status_send = 1
+status_send = 0
 
 def distance(p1, p2):
     return sum([(i - j) ** 2 for i, j in zip(p1, p2)]) ** 0.5
@@ -56,7 +58,7 @@ def get_mar(landmarks, refer_idxs, frame_width, frame_height):
         vertical_1 = distance(P3, P6)
         vertical_2 = distance(P4, P5)
         horizontal = distance(P1, P2)
-        print(f"{int(vertical_1)} {int(vertical_1)} {int(horizontal)}")
+        # print(f"{int(vertical_1)} {int(vertical_1)} {int(horizontal)}")
 
         mar = (vertical_1 + vertical_2) / (2.0 * horizontal)
 
@@ -177,11 +179,15 @@ with mp_facemesh.FaceMesh(refine_landmarks=True, max_num_faces=1) as face_mesh:
         if(ear < 0.25 and mar > 0.5 and is_sleppy):
             # print("mengantuk ") 
             if(not safety):
-                status_send = 1
+                count_safety = count_safety +1
+                if(count_safety > safety_tresh):
+                    status_send = 1
+                    
             cv2.putText(image_chosen_lmks, "Mengantuk!!", (520, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
         else:
             # print("normal")
             safety = 0
+            count_safety = 0
             status_send = 0
             cv2.putText(image_chosen_lmks, "Aman", (520, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
@@ -194,7 +200,7 @@ with mp_facemesh.FaceMesh(refine_landmarks=True, max_num_faces=1) as face_mesh:
                 safety = 1
                 status_send = 0
                 last_sent = now
-
+        print(count_safety)
         cv2.putText(image_chosen_lmks, f"{mouth_dir}", (520,60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 100), 2)
         cv2.imshow("Tessellation", image_tess)
         # cv2.imshow("All Eye Landmarks", image_all_lmks)
