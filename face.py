@@ -77,7 +77,7 @@ def get_mouth_open_direction(landmarks, frame_width, frame_height):
         P4 = denormalize_coordinates(landmarks[14].x, landmarks[14].y, frame_width, frame_height)  # bawah
 
         if None in (P1, P2, P3, P4):
-            return 0.0, "Invalid"
+            return 0.0, 0.0, 0, 0, "Error"
 
         width = distance(P1, P2)
         height = distance(P3, P4)
@@ -95,10 +95,9 @@ def get_mouth_open_direction(landmarks, frame_width, frame_height):
 
         else:
             label = "Netral"
-
         return is_sleppy, ratio, width, height, label
     except:
-        return 0.0, "Error"
+        return 0.0, 0.0, 0, 0, "Error"
 
 
 def calculate_avg_ear(landmarks, w, h):
@@ -108,7 +107,9 @@ def calculate_avg_ear(landmarks, w, h):
 
 
 
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(5)
+# cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+# cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
 with mp_facemesh.FaceMesh(refine_landmarks=True, max_num_faces=1) as face_mesh:
     while cap.isOpened():
@@ -120,6 +121,7 @@ with mp_facemesh.FaceMesh(refine_landmarks=True, max_num_faces=1) as face_mesh:
         imgH, imgW, _ = frame.shape
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         result = face_mesh.process(rgb)
+        # print(frame.shape)
 
         # Salinan gambar untuk 3 tampilan
         image_tess = frame.copy()
@@ -176,32 +178,32 @@ with mp_facemesh.FaceMesh(refine_landmarks=True, max_num_faces=1) as face_mesh:
                 if coord:
                     cv2.circle(image_chosen_lmks, coord, 2, (0, 255, 255), -1)
         
-        if(ear < 0.25 and mar > 0.5 and is_sleppy):
-            # print("mengantuk ") 
-            if(not safety):
-                count_safety = count_safety +1
-                if(count_safety > safety_tresh):
-                    status_send = 1
-                    
-            cv2.putText(image_chosen_lmks, "Mengantuk!!", (520, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-        else:
-            # print("normal")
-            safety = 0
-            count_safety = 0
-            status_send = 0
-            cv2.putText(image_chosen_lmks, "Aman", (520, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-
-        now = time.time()
-        if now - last_sent >= interval:
-            if(status_send):
-                data = str(status_send)+"\n"
-                arduino.write(data.encode())
-                safety = 1
+            if(ear < 0.25 and mar > 0.5 and is_sleppy):
+                # print("mengantuk ") 
+                if(not safety):
+                    count_safety = count_safety +1
+                    if(count_safety > safety_tresh):
+                        status_send = 1
+                        
+                cv2.putText(image_chosen_lmks, "Mengantuk!!", (520, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+            else:
+                # print("normal")
+                safety = 0
+                count_safety = 0
                 status_send = 0
-                last_sent = now
-        print(count_safety)
-        cv2.putText(image_chosen_lmks, f"{mouth_dir}", (520,60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 100), 2)
+                cv2.putText(image_chosen_lmks, "Aman", (520, 30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+
+            now = time.time()
+            if now - last_sent >= interval:
+                if(status_send):
+                    data = str(status_send)+"\n"
+                    arduino.write(data.encode())
+                    safety = 1
+                    status_send = 0
+                    last_sent = now
+            print(count_safety)
+            cv2.putText(image_chosen_lmks, f"{mouth_dir}", (520,60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 100), 2)
         cv2.imshow("Tessellation", image_tess)
         # cv2.imshow("All Eye Landmarks", image_all_lmks)
         cv2.imshow("Landmarks + EAR + MAR", image_chosen_lmks)
